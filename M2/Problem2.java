@@ -20,7 +20,12 @@ public class Problem2 {
         //TODO add/edit code here
        
         //set the double to a string variable
-        totalOutput = total+"";
+        for(double element:arr)
+        {
+            total+=element;
+        }
+        totalOutput = String.valueOf(total)+"";
+
         //end add/edit section
         System.out.println("Total is " + totalOutput);
         System.out.println("End process");

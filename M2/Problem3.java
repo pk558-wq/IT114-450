@@ -22,6 +22,27 @@ public class Problem3 {
         //set the result to the proper index of the output array
         //hint: don't forget to handle the data types properly
         
+        for(int i=0; i<arr.length; i++)
+        {
+            String sValue = arr[i].toString();
+            if (sValue.startsWith("-"))
+            {
+                sValue = sValue.substring(1);
+            }
+
+            switch (arr[i].getClass().getSimpleName())
+            {
+                case "Double":
+                output[i] = new Double(sValue);
+                break;
+                case "Integer":
+                output[i] = new Integer(sValue);
+                break;
+                case "String":
+                output[i] = new String(sValue);
+                break;
+            }
+        }
         //end edit section
 
         StringBuilder sb = new StringBuilder();

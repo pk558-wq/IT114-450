@@ -16,7 +16,14 @@ public class Problem1 {
     static void processArray(int[] arr){
         System.out.println("Processing Array:" + Arrays.toString(arr));
         System.out.println("Odds output:");
-        //TODO add/edit code here
+        for (int element:arr)
+        {
+            if(element%2==1)
+            {
+                System.out.println(element);
+            }
+
+        }
         
         //end add/edit section
         System.out.println();
