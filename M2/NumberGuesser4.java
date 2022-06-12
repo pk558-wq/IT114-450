@@ -114,6 +114,29 @@ public class NumberGuesser4 {
         }
     }
 
+    private void coldWarmHotIndicator(int guess) {
+        int difference = Math.abs(guess - number);
+        if (difference > 10) {
+            System.out.println("Cold");
+        } else if (difference > 5) {
+            System.out.println("Warm");
+        } else if (difference > 2) {
+            System.out.println("Hot");
+        }
+    }
+
+    private void higherLower(int guess)
+    {
+        if (guess < number)
+        {
+            System.out.println("Hint: higher");
+        }
+        else
+        {
+            System.out.println("Hint: lower");
+        }
+    }
+
     private void processGuess(int guess) {
         if (guess < 0) {
             return;
@@ -124,6 +147,10 @@ public class NumberGuesser4 {
             pickNewRandom = true;
         } else {
             System.out.println("That's wrong");
+
+            coldWarmHotIndicator(guess);
+            higherLower(guess);
+
             strikes++;
             if (strikes >= maxStrikes) {
                 lose();
