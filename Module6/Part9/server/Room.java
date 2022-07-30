@@ -6,8 +6,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.HashMap;
+import java.util.Map.Entry;
 
 import Module6.Part9.common.Constants;
+import Module6.Part9.common.GeneralUtils;
 
 public class Room implements AutoCloseable {
 	private String name;
@@ -23,6 +26,7 @@ public class Room implements AutoCloseable {
 	private final static String MUTE = "mute";
 	private final static String UNMUTE = "unmute";
 	private static Logger logger = Logger.getLogger(Room.class.getName());
+	private HashMap<String, String> converter = null;
 
 	public Room(String name) {
 		this.name = name;
@@ -180,6 +184,9 @@ public class Room implements AutoCloseable {
 			// it was a command, don't broadcast
 			return;
 		}
+
+		message = formatMessage(message);
+
 		long from = (sender == null) ? Constants.DEFAULT_CLIENT_ID : sender.getClientId();
 		synchronized (clients) {
 			Iterator<ServerThread> iter = clients.iterator();
@@ -283,6 +290,39 @@ public class Room implements AutoCloseable {
 				}
 			}
 		}
+	}
+
+	protected String formatMessage(String message) {
+		String alteredMessage = message;
+		
+		// expect pairs ** -- __
+		if(converter == null){
+			converter = new HashMap<String, String>();
+			// user symbol => output text separated by |
+			converter.put("\\*{2}", "<b>|</b>");
+			converter.put("--", "<i>|</i>");
+			converter.put("__", "<u>|</u>");
+			converter.put("#r#", "<font color=\"red\">|</font>");
+			converter.put("#g#", "<font color=\"green\">|</font>");
+			converter.put("#b#", "<font color=\"blue\">|</font>");
+		}
+		for (Entry<String, String> kvp : converter.entrySet()) {
+			if (GeneralUtils.countOccurencesInString(alteredMessage, kvp.getKey().toLowerCase()) >= 2) {
+				String[] s1 = alteredMessage.split(kvp.getKey().toLowerCase());
+				String m = "";
+				for (int i = 0; i < s1.length; i++) {
+					if (i % 2 == 0) {
+						m += s1[i];
+					} else {
+						String[] wrapper = kvp.getValue().split("\\|");
+						m += String.format("%s%s%s", wrapper[0], s1[i], wrapper[1]);
+					}
+				}
+				alteredMessage = m;
+			}
+		}
+
+		return alteredMessage;
 	}
 
 	private synchronized void handleDisconnect(Iterator<ServerThread> iter, ServerThread client) {
