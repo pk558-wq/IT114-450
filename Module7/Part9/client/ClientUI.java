@@ -20,6 +20,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.ArrayList;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.ObjectOutputStream;
@@ -223,8 +224,7 @@ public class ClientUI extends JFrame implements IClientEvents {
             if (isValid) {
                 // System.out.println("Chosen username: " + username);
                 logger.log(Level.INFO, "Chosen username: " + username);
-                historyFileName = new File("./chatHistory/" + username + ".dat");
-                //loadChatHistory();
+                historyFileName = new File("./chatHistory/" + username + ".txt");
 
                 userError.setVisible(false);
                 setTitle(originalTitle + " - " + username);
@@ -318,6 +318,8 @@ public class ClientUI extends JFrame implements IClientEvents {
         JTextField textValue = new JTextField();
         input.add(textValue);
         JButton button = new JButton("Send");
+        JButton exportButton = new JButton("Export");
+
         // lets us submit with the enter key instead of just the button click
         textValue.addKeyListener(new KeyListener() {
 
@@ -365,8 +367,11 @@ public class ClientUI extends JFrame implements IClientEvents {
                 e1.printStackTrace();
             }
         });
+
+        addExportListener(exportButton);
         chatArea = content;
         input.add(button);
+        input.add(exportButton);
         parent.add(createUserListPanel(), BorderLayout.EAST);
         parent.add(input, BorderLayout.SOUTH);
         parent.setName(Card.CHAT.name());
@@ -435,7 +440,6 @@ public class ClientUI extends JFrame implements IClientEvents {
     private void addText(String text) {
         chatHistory.add(text);
         displayText(text);
-        saveChatHistory();
     }
     private void displayText(String text) {
         JPanel content = chatArea;
@@ -605,8 +609,6 @@ public class ClientUI extends JFrame implements IClientEvents {
         } else {
             logger.log(Level.WARNING, "Received client id after already being set, this shouldn't happen");
         }
-        loadChatHistory();
-        System.out.println("********** loading");
     }
 
     @Override
@@ -620,7 +622,6 @@ public class ClientUI extends JFrame implements IClientEvents {
         if (currentCard.ordinal() >= Card.CHAT.ordinal()) {
             processClientConnectionStatus(clientId, clientName, true);
         }
-        System.out.println("on sync client loading chat history");
     }
 
     @Override
@@ -650,41 +651,17 @@ public class ClientUI extends JFrame implements IClientEvents {
         System.out.println("saving as " + historyFileName);
         try {
             parent.mkdirs();
-            FileOutputStream fo = new FileOutputStream(historyFileName);
-            ObjectOutputStream os = new ObjectOutputStream(fo);
-            os.writeObject(chatHistory);
-            os.close();
-            fo.close();
+            FileWriter fWriter = new FileWriter(historyFileName);
+            for (String msg: chatHistory) {
+                fWriter.write(msg);
+                fWriter.write("\n");
+            }
+            fWriter.close();
         }
         catch (Exception e) {
             System.err.println(e);
         }
     }
-
-    private void loadChatHistory () {
-        
-        if (!historyFileName.exists())
-        {
-            System.out.println("history file not found " + historyFileName);
-            return;
-        } 
-        try {
-            System.out.println("history file found " + historyFileName);
-            FileInputStream fs = new FileInputStream(historyFileName);
-            ObjectInputStream ois = new ObjectInputStream(fs);
-            Object o = ois.readObject();
-            chatHistory = (ArrayList<String>)o;
-            for (String msg : chatHistory) {
-                displayText(msg);
-            }
-            ois.close();
-            fs.close();
-        } catch (Exception e) {
-            System.err.println(e);
-        }
-
-    }
-
 
 
     private void highlightClientID(long clientId) {
@@ -795,5 +772,17 @@ public class ClientUI extends JFrame implements IClientEvents {
         }
         return;
          
+    }
+
+    private void addExportListener(JButton button) {
+
+    
+        button.addActionListener((event) -> {
+            try {
+                    saveChatHistory();
+                }
+                catch (NullPointerException e) {
+                } 
+        });
     }
 }
