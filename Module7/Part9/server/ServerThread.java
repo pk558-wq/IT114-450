@@ -1,0 +1,353 @@
+package Module7.Part9.server;
+
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import java.util.Random;
+import java.util.ArrayList;
+
+import Module6.Part9.common.Payload;
+import Module6.Part9.common.PayloadType;
+import Module6.Part9.common.RoomResultPayload;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
+import java.io.ObjectOutputStream;
+import java.io.ObjectInputStream;
+
+
+/**
+ * A server-side representation of a single client
+ */
+public class ServerThread extends Thread {
+    private Socket client;
+    private String clientName;
+    private boolean isRunning = false;
+    private ArrayList<String> mutedList = new ArrayList<String>();
+    private File mutedFileName;
+    private ObjectOutputStream out;// exposed here for send()
+    // private Server server;// ref to our server so we can call methods on it
+    // more easily
+    private Room currentRoom;
+    private static Logger logger = Logger.getLogger(ServerThread.class.getName());
+    private long myId;
+
+    public void setClientId(long id) {
+        myId = id;
+    }
+
+    public long getClientId() {
+        
+        return myId;
+    }
+
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    private void info(String message) {
+        System.out.println(String.format("Thread[%s]: %s", getId(), message));
+    }
+
+    public ServerThread(Socket myClient, Room room) {
+        info("Thread created");
+        // get communication channels to single client
+        this.client = myClient;
+        this.currentRoom = room;
+
+    }
+
+    protected void setClientName(String name) {
+        if (name == null || name.isBlank()) {
+            System.err.println("Invalid client name being set");
+            return;
+        }
+        clientName = name;
+        mutedFileName = new File("./mutedList/" + clientName + ".dat");
+        loadMutedUsers();
+
+    }
+
+    protected String getClientName() {
+        return clientName;
+    }
+
+    protected synchronized Room getCurrentRoom() {
+        return currentRoom;
+    }
+
+    protected synchronized void setCurrentRoom(Room room) {
+        if (room != null) {
+            currentRoom = room;
+        } else {
+            info("Passed in room was null, this shouldn't happen");
+        }
+    }
+
+    public void disconnect() {
+        sendConnectionStatus(myId, getClientName(), false);
+        info("Thread being disconnected by server");
+        isRunning = false;
+        cleanup();
+    }
+
+    // send methods
+    public boolean sendRoomName(String name){
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.JOIN_ROOM);
+        p.setMessage(name);
+        return send(p);
+    }
+    public boolean sendRoomsList(String[] rooms, String message) {
+        RoomResultPayload payload = new RoomResultPayload();
+        payload.setRooms(rooms);
+        if(rooms != null && rooms.length == 0){
+            payload.setMessage("No rooms found containing your query string");
+        }
+        return send(payload);
+    }
+
+    public boolean sendExistingClient(long clientId, String clientName) {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.SYNC_CLIENT);
+        p.setClientId(clientId);
+        p.setClientName(clientName);
+        return send(p);
+    }
+
+    public boolean sendResetUserList() {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.RESET_USER_LIST);
+        return send(p);
+    }
+
+    public boolean sendClientId(long id) {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.CLIENT_ID);
+        p.setClientId(id);
+        return send(p);
+    }
+
+    public boolean sendMessage(long clientId, String message) {
+        Payload p = new Payload();
+        p.setPayloadType(PayloadType.MESSAGE);
+        p.setClientId(clientId);
+        p.setMessage(message);
+        return send(p);
+    }
+
+    public boolean sendConnectionStatus(long clientId, String who, boolean isConnected) {
+        Payload p = new Payload();
+        p.setPayloadType(isConnected ? PayloadType.CONNECT : PayloadType.DISCONNECT);
+        p.setClientId(clientId);
+        p.setClientName(who);
+        p.setMessage(isConnected ? "connected" : "disconnected");
+        return send(p);
+    }
+
+    private boolean send(Payload payload) {
+        // added a boolean so we can see if the send was successful
+        try {
+            // TODO add logger
+            logger.log(Level.FINE, "Outgoing payload: " + payload);
+            out.writeObject(payload);
+            logger.log(Level.INFO, "Sent payload: " + payload);
+            return true;
+        } catch (IOException e) {
+            info("Error sending message to client (most likely disconnected)");
+            // comment this out to inspect the stack trace
+            // e.printStackTrace();
+            cleanup();
+            return false;
+        } catch (NullPointerException ne) {
+            info("Message was attempted to be sent before outbound stream was opened: " + payload);
+            return true;// true since it's likely pending being opened
+        }
+    }
+
+    // end send methods
+    @Override
+    public void run() {
+        info("Thread starting");
+        try (ObjectOutputStream out = new ObjectOutputStream(client.getOutputStream());
+                ObjectInputStream in = new ObjectInputStream(client.getInputStream());) {
+            this.out = out;
+            isRunning = true;
+            Payload fromClient;
+            while (isRunning && // flag to let us easily control the loop
+                    (fromClient = (Payload) in.readObject()) != null // reads an object from inputStream (null would
+                                                                     // likely mean a disconnect)
+            ) {
+
+                info("Received from client: " + fromClient);
+                processPayload(fromClient);
+
+            } // close while loop
+        } catch (Exception e) {
+            // happens when client disconnects
+            e.printStackTrace();
+            info("Client disconnected");
+        } finally {
+            isRunning = false;
+            info("Exited thread loop. Cleaning up connection");
+            cleanup();
+        }
+    }
+
+    void processPayload(Payload p) {
+        switch (p.getPayloadType()) {
+            case CONNECT:
+                setClientName(p.getClientName());
+                break;
+            case DISCONNECT:// TBD
+                break;
+            case MESSAGE:
+                if (currentRoom != null) {
+                    if (p.getMessage().startsWith("/flip")) {
+                        currentRoom.sendMessage(this, "<b>" + flip() + "</b>");
+                    }
+                    else if (p.getMessage().startsWith("/roll"))
+                    {   
+                        currentRoom.sendMessage(this, "<b>" + roll() + "</b>");
+                    }
+                    else if (p.getMessage().startsWith("@")) {
+                        String message = p.getMessage();
+                        int endUserIndex = message.indexOf(" ");
+                        if (endUserIndex >= 0) {
+                            String username = message.substring(1,endUserIndex);
+                            currentRoom.sendMessage(this, username, message.substring(endUserIndex + 1));
+                        }
+                        
+                    } 
+                    else {
+                        currentRoom.sendMessage(this, p.getMessage());
+                    }
+
+                } else {
+                    // TODO migrate to lobby
+                    logger.log(Level.INFO, "Migrating to lobby on message with null room");
+                    Room.joinRoom("lobby", this);
+                }
+                break;
+            case GET_ROOMS:
+                Room.getRooms(p.getMessage().trim(), this);
+                break;
+            case CREATE_ROOM:
+                Room.createRoom(p.getMessage().trim(), this);
+                break;
+            case JOIN_ROOM:
+                Room.joinRoom(p.getMessage().trim(), this);
+                break;
+            default:
+                break;
+
+        }
+
+    }
+
+    private String roll() {
+        Random rand = new Random();
+        int upperBound = 6;
+        int randInt = rand.nextInt(upperBound);
+        return String.valueOf(randInt);
+    }
+
+    private String flip() {
+        String toss;
+        Random rand1 = new Random();
+        int randInteger = rand1.nextInt(2);
+        if (randInteger == 0) {
+                toss = "heads";
+            }
+        else {
+                toss = "tails";
+            }
+        return toss;
+    }
+
+    public boolean addToMutedList(String name) {
+        if(inMutedList(name)) {
+            return false;
+        }
+        mutedList.add(name);
+        saveMutedUsers();
+        return true;
+    }
+
+    public boolean inMutedList(String name) {
+        return mutedList.contains(name);
+    }
+    
+    public boolean removeFromMutedList(String name) {
+        if(inMutedList(name)) {
+            mutedList.remove(name);
+            return true;
+        }
+        return false;
+    }
+
+    private void cleanup() {
+        info("Thread cleanup() start");
+        try {
+            client.close();
+        } catch (IOException e) {
+            info("Client already closed");
+        }
+        info("Thread cleanup() complete");
+    }
+
+    private void saveMutedUsers () {
+        File parent = new File(mutedFileName.getParent());
+
+        System.out.println("saving as " + mutedFileName);
+        try {
+            parent.mkdirs();
+            FileOutputStream fo = new FileOutputStream(mutedFileName);
+            ObjectOutputStream os = new ObjectOutputStream(fo);
+            os.writeObject(mutedList);
+            os.close();
+            fo.close();
+        }
+        catch (Exception e) {
+            System.err.println(e);
+        }
+    }
+
+    private void loadMutedUsers () {
+        if (!mutedFileName.exists())
+        {
+            return;
+        } 
+        try {
+            FileInputStream fs = new FileInputStream(mutedFileName);
+            ObjectInputStream ois = new ObjectInputStream(fs);
+            Object o = ois.readObject();
+            mutedList = (ArrayList<String>)o;
+            ois.close();
+            fs.close();
+        } catch (Exception e) {
+            System.err.println(e);
+        }
+
+    }
+
+
+    public String getMutedUsersString() {
+        if(mutedList.isEmpty()){
+            return "";
+        }
+		StringBuilder sb = new StringBuilder();
+		sb.append("/mutedUsers ");
+		for (int i = 0; i<mutedList.size(); i++) {
+			if(i>0) {
+				sb.append(",");
+			}
+			sb.append(mutedList.get(i));
+		}
+		return sb.toString();
+	}
+}
