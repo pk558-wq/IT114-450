@@ -24,6 +24,8 @@ import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.io.ObjectOutputStream;
 import java.io.ObjectInputStream;
+import java.util.Set;
+
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -69,6 +71,7 @@ public class ClientUI extends JFrame implements IClientEvents {
     private Hashtable<Long, String> userList = new Hashtable<Long, String>();
 
     private long myId = Constants.DEFAULT_CLIENT_ID;
+    private long lastSenderID = Constants.DEFAULT_CLIENT_ID;
     private JMenuBar menu;
     private RoomsPanel roomsPanel;
 
@@ -343,6 +346,14 @@ public class ClientUI extends JFrame implements IClientEvents {
                 String text = textValue.getText().trim();
                 if (text.length() > 0) {
                     Client.INSTANCE.sendMessage(text);
+                    if (text.startsWith("/mute")) {
+                        String username = text.substring(6);
+                        muteClientName(username);
+                    }
+                    else if (text.startsWith("/unmute")) {
+                        String username = text.substring(8);
+                        unmuteClientName(username);
+                    }
                     textValue.setText("");// clear the original text
 
                     // debugging
@@ -532,13 +543,18 @@ public class ClientUI extends JFrame implements IClientEvents {
      * @param isConnect
      */
     private synchronized void processClientConnectionStatus(long clientId, String clientName, boolean isConnect) {
+        System.out.println("process client connection status " + clientName);
         if (isConnect) {
+            System.out.println("process client connection status is connect is true" + clientName);
+
             if (!userList.containsKey(clientId)) {
                 logger.log(Level.INFO, String.format("Adding %s[%s]", clientName, clientId));
                 userList.put(clientId, clientName);
                 addUserListItem(clientId, String.format("%s (%s)", clientName, clientId));
             }
         } else {
+            System.out.println("removing process client connection status " + clientName);
+
             if (userList.containsKey(clientId)) {
                 logger.log(Level.INFO, String.format("Removing %s[%s]", clientName, clientId));
                 userList.remove(clientId);
@@ -554,6 +570,7 @@ public class ClientUI extends JFrame implements IClientEvents {
 
     @Override
     public void onClientConnect(long clientId, String clientName, String message) {
+        System.out.println("on client connect " + clientName);
         if (currentCard.ordinal() >= Card.CHAT.ordinal()) {
             processClientConnectionStatus(clientId, clientName, true);
             addText(String.format("*%s %s*", clientName, message));
@@ -572,6 +589,7 @@ public class ClientUI extends JFrame implements IClientEvents {
     public void onMessageReceive(long clientId, String message) {
         if (currentCard.ordinal() >= Card.CHAT.ordinal()) {
             String clientName = mapClientId(clientId);
+            highlightClientID(clientId);
             addText(String.format("%s: %s", clientName, message));
         }
     }
@@ -655,5 +673,96 @@ public class ClientUI extends JFrame implements IClientEvents {
             System.err.println(e);
         }
 
+    }
+
+
+
+    private void highlightClientID(long clientId) {
+        if(lastSenderID != Constants.DEFAULT_CLIENT_ID) {
+            System.out.println("unhighlighting" + lastSenderID);
+            unhighlightClientID(lastSenderID);
+        }
+        else {
+            System.out.println("no unhighlighting needed");
+        }
+        logger.log(Level.INFO, "highlighting clientId " + clientId);
+        lastSenderID = clientId;
+        Component[] cs = userListArea.getComponents();
+        for (Component c : cs) {
+            if (c.getName().equals(clientId + "")) {
+                JEditorPane jp = (JEditorPane)(c);
+                System.out.println("Highlighting for "  + c.getName());
+                jp.setOpaque(true);
+                jp.setBackground(Color.red);
+                jp.repaint();
+
+                break;
+            }
+        
+    }
+        userListArea.repaint();
+    }
+
+    private void unhighlightClientID(long clientId) {
+        logger.log(Level.INFO, "unhighlighting clientId " + clientId);
+        Component[] cs = userListArea.getComponents();
+        for (Component c : cs) {
+            if (c.getName().equals(clientId + "")) {
+                JEditorPane jp = (JEditorPane)(c);
+                System.out.println("Unhighlighting for "  + c.getName());
+                jp.setOpaque(true);       
+                jp.setBackground(new Color(0, 0, 0, 0));         
+                jp.repaint();
+                break;
+            }
+        }
+        userListArea.repaint();
+    }
+
+    private void muteClientName(String clientName) {
+        logger.log(Level.INFO, "muting clientName " + clientName);
+        long clientId = getClientIdFromName(clientName);
+        Component[] cs = userListArea.getComponents();
+        for (Component c : cs) {
+            if (c.getName().equals(clientId + "")) {
+                JEditorPane jp = (JEditorPane)(c);
+                System.out.println("Highlighting for "  + c.getName());
+                jp.setOpaque(true);
+                jp.setBackground(Color.gray);
+                jp.repaint();
+                break;
+            }
+        
+    }
+        userListArea.repaint();
+    }
+
+    private void unmuteClientName(String clientName) {
+        logger.log(Level.INFO, "unmuting clientName " + clientName);
+        long clientId = getClientIdFromName(clientName);
+        Component[] cs = userListArea.getComponents();
+        for (Component c : cs) {
+            if (c.getName().equals(clientId + "")) {
+                JEditorPane jp = (JEditorPane)(c);
+                System.out.println("Highlighting for "  + c.getName());
+                jp.setOpaque(true);
+                jp.setBackground(new Color(0, 0, 0, 0));         
+                jp.repaint();
+
+                break;
+            }
+        
+    }
+        userListArea.repaint();
+    }
+
+    private long getClientIdFromName(String name) {
+        Set<Long> setOfKeys = userList.keySet();
+ 
+        for (Long key : setOfKeys) {
+            if (userList.get(key).equals(name));
+                return key.longValue();
+        }
+        return 0;
     }
 }
