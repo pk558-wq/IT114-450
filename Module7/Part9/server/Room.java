@@ -57,8 +57,11 @@ public class Room implements AutoCloseable {
 			sendConnectionStatus(client, true);
 			sendRoomJoined(client);
 			sendUserListToClient(client);
+			sendMutedUsersToClient(client);
+
 		}
 	}
+
 
 	protected synchronized void removeClient(ServerThread client) {
 		if (!isRunning) {
@@ -346,5 +349,17 @@ public class Room implements AutoCloseable {
 		Server.INSTANCE.removeRoom(this);
 		isRunning = false;
 		clients = null;
+	}
+
+
+	
+
+	public void sendMutedUsersToClient(ServerThread client) {
+		String tmp = client.getMutedUsersString();
+		if(tmp.length()>0) {
+			sendMessage(client, client.getClientName(), tmp);
+			return;
+		}
+		
 	}
 }

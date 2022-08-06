@@ -25,7 +25,7 @@ import java.io.FileInputStream;
 import java.io.ObjectOutputStream;
 import java.io.ObjectInputStream;
 import java.util.Set;
-
+import java.util.StringTokenizer;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -80,7 +80,6 @@ public class ClientUI extends JFrame implements IClientEvents {
         originalTitle = title;
         container = getContentPane();
         chatHistory = new ArrayList <String>();
-        historyFileName = new File("./chatHistory/" + title + ".dat");
         container.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -184,7 +183,6 @@ public class ClientUI extends JFrame implements IClientEvents {
         parent.add(content, BorderLayout.CENTER);
         parent.setName(Card.CONNECT.name());
         this.add(Card.CONNECT.name(), parent);// this is the JFrame
-
     }
 
     private void ceateUserInputScreen() {
@@ -226,7 +224,7 @@ public class ClientUI extends JFrame implements IClientEvents {
                 // System.out.println("Chosen username: " + username);
                 logger.log(Level.INFO, "Chosen username: " + username);
                 historyFileName = new File("./chatHistory/" + username + ".dat");
-                loadChatHistory();
+                //loadChatHistory();
 
                 userError.setVisible(false);
                 setTitle(originalTitle + " - " + username);
@@ -590,7 +588,13 @@ public class ClientUI extends JFrame implements IClientEvents {
         if (currentCard.ordinal() >= Card.CHAT.ordinal()) {
             String clientName = mapClientId(clientId);
             highlightClientID(clientId);
-            addText(String.format("%s: %s", clientName, message));
+            if (message.startsWith("/mutedUsers")) {
+                muteSavedUsers(message);
+            }
+            else {
+                addText(String.format("%s: %s", clientName, message));
+            }
+    
         }
     }
 
@@ -601,6 +605,8 @@ public class ClientUI extends JFrame implements IClientEvents {
         } else {
             logger.log(Level.WARNING, "Received client id after already being set, this shouldn't happen");
         }
+        loadChatHistory();
+        System.out.println("********** loading");
     }
 
     @Override
@@ -614,6 +620,7 @@ public class ClientUI extends JFrame implements IClientEvents {
         if (currentCard.ordinal() >= Card.CHAT.ordinal()) {
             processClientConnectionStatus(clientId, clientName, true);
         }
+        System.out.println("on sync client loading chat history");
     }
 
     @Override
@@ -655,11 +662,14 @@ public class ClientUI extends JFrame implements IClientEvents {
     }
 
     private void loadChatHistory () {
+        
         if (!historyFileName.exists())
         {
+            System.out.println("history file not found " + historyFileName);
             return;
         } 
         try {
+            System.out.println("history file found " + historyFileName);
             FileInputStream fs = new FileInputStream(historyFileName);
             ObjectInputStream ois = new ObjectInputStream(fs);
             Object o = ois.readObject();
@@ -678,7 +688,12 @@ public class ClientUI extends JFrame implements IClientEvents {
 
 
     private void highlightClientID(long clientId) {
-        if(lastSenderID != Constants.DEFAULT_CLIENT_ID) {
+        if (lastSenderID == clientId) {
+            System.out.println("same user nothing to highlight");
+            return;
+        }
+        else if(lastSenderID != Constants.DEFAULT_CLIENT_ID) {
+
             System.out.println("unhighlighting" + lastSenderID);
             unhighlightClientID(lastSenderID);
         }
@@ -726,7 +741,7 @@ public class ClientUI extends JFrame implements IClientEvents {
         for (Component c : cs) {
             if (c.getName().equals(clientId + "")) {
                 JEditorPane jp = (JEditorPane)(c);
-                System.out.println("Highlighting for "  + c.getName());
+                System.out.println("Muting/graying for "  + c.getName());
                 jp.setOpaque(true);
                 jp.setBackground(Color.gray);
                 jp.repaint();
@@ -744,7 +759,7 @@ public class ClientUI extends JFrame implements IClientEvents {
         for (Component c : cs) {
             if (c.getName().equals(clientId + "")) {
                 JEditorPane jp = (JEditorPane)(c);
-                System.out.println("Highlighting for "  + c.getName());
+                System.out.println("Unmuting for "  + c.getName());
                 jp.setOpaque(true);
                 jp.setBackground(new Color(0, 0, 0, 0));         
                 jp.repaint();
@@ -758,11 +773,27 @@ public class ClientUI extends JFrame implements IClientEvents {
 
     private long getClientIdFromName(String name) {
         Set<Long> setOfKeys = userList.keySet();
+        System.out.println("getting client id from name " + name);
  
         for (Long key : setOfKeys) {
-            if (userList.get(key).equals(name));
+            if (userList.get(key).equals(name)){
+                System.out.println("found id " + key.longValue() + " for " + name);
                 return key.longValue();
+            }
         }
         return 0;
+    }
+
+
+    private void muteSavedUsers (String message) {
+        String users = message.substring(12);
+        StringTokenizer st = new StringTokenizer (users, ",");
+        while (st.hasMoreTokens()) {
+            String x = st.nextToken();
+            System.out.println("muting old user " + x);
+            muteClientName(x);
+        }
+        return;
+         
     }
 }

@@ -152,6 +152,7 @@ public enum Client {
             logger.log(Level.FINER, "Events not initialize/set" + p);
             return;
         }
+        System.out.println(p);
         switch (p.getPayloadType()) {
             case CONNECT:
                 events.onClientConnect(p.getClientId(), p.getClientName(), p.getMessage());
@@ -164,6 +165,7 @@ public enum Client {
                 break;
             case CLIENT_ID:
                 events.onReceiveClientId(p.getClientId());
+                System.out.println("-----------receieved client id");
                 break;
             case RESET_USER_LIST:
                 events.onResetUserList();

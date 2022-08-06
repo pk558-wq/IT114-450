@@ -334,4 +334,20 @@ public class ServerThread extends Thread {
         }
 
     }
+
+
+    public String getMutedUsersString() {
+        if(mutedList.isEmpty()){
+            return "";
+        }
+		StringBuilder sb = new StringBuilder();
+		sb.append("/mutedUsers ");
+		for (int i = 0; i<mutedList.size(); i++) {
+			if(i>0) {
+				sb.append(",");
+			}
+			sb.append(mutedList.get(i));
+		}
+		return sb.toString();
+	}
 }
